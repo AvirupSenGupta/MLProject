@@ -80,7 +80,7 @@ predict(modelRF, testing[, -length(names(testing))])
 prp(modelTree)
 ```
 
-![](Report_files/figure-html/unnamed-chunk-7-1.png)
+![](unnamed-chunk-7-1.png)
 
 ```r
 confusionMatrix(validation$classe, predictRF)
