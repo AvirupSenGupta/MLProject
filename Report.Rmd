@@ -1,0 +1,79 @@
+---
+title: "Machine Learning Prediction Assignment"
+output: html_document
+---
+# Executive Summary
+IN this project I develop a model to predict the manner in which the exercise is done by using the data collected by Wallace Ugulino, Eduardo Velloso, and Hugo Fuks.The data was collected as  part of a project on Human Activity Recognition experiment.
+
+# Setting up the R environment
+Firs R environment was set up by calling all the the required libraries.
+```{r}
+suppressWarnings(suppressMessages(library(rpart)))
+suppressWarnings(suppressMessages(library(caret)))
+suppressWarnings(suppressMessages(library(ggplot2)))
+suppressWarnings(suppressMessages(library(ipred)))
+suppressWarnings(suppressMessages(library(randomForest)))
+suppressWarnings(suppressMessages(library(rpart.plot)))
+```
+
+# Reading and cleaning up the data
+The data set is collected for 6 participants while performing one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions. The training data set collect 19622 observations with 160 fields, the outcome is named "classe". The test data set collect 20 observations with 160 fields, the outcome is missed. The outcome of this dataset will be predicted by the model created and submitted for evaluation. To clean up the data, I first removed the columns that contained NA and then removed few columns of the dataset that do not contributed to the accelerometer measurements. The following code is used to read and clean up the data:
+```{r, warning=FALSE, error=FALSE}
+url_train <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(url_train, method="libcurl"), na.strings=c("NA","#DIV/0!",""))
+testing  <- read.csv(url(url_test, method="libcurl"), na.strings=c("NA","#DIV/0!",""))
+NAcond <- (colSums(is.na(training)) == 0)
+training <- training[, NAcond]
+testing <- testing[, NAcond]
+regex <- grepl("^X|timestamp|user_name", names(training))
+training <- training[, !regex]
+testing <- testing[, !regex]
+```
+# Partitioning Training Set
+Now I split the cleaned training set into a pure training data set (60%) and a validation data set (40%). We will use the validation data set to conduct cross validation in future steps.The entire dataset now divided into three sections as: (1) training, (2) validation and (3) testing dataset. 
+```{r}
+set.seed(2) # For reproducibile purpose
+inTrain <- createDataPartition(training$classe, p = 0.60, list = FALSE)
+validation <- training[-inTrain, ]
+training <- training[inTrain, ]
+```
+#Data Modeling
+##Decision Tree
+We fit a predictive model for activity recognition using Decision Tree algorithm. Output is shown in <b>Appendix 1</b>. Then I estimate the performance of the model on the validation data set.
+```{r}
+modelTree <- rpart(classe ~ ., data = training, method = "class")
+predictTree <- predict(modelTree, validation, type = "class")
+accuracy <- postResample(predictTree, validation$classe)
+ose <- 1 - as.numeric(confusionMatrix(validation$classe, predictTree)$overall[1])
+```
+`r accuracy[1]*100`% and `r ose*100`% are the estimated accuracy of the Random Forest Model and the estimated Out-of-Sample Error, respectively.
+
+## Random Forest
+We fit a predictive model for activity recognition using <b>Random Forest</b> algorithm because it automatically selects important variables and is robust to correlated covariates & outliers in general. model output is shown in <b>Appendix 2</b>. I then use <b>5-fold cross validation</b> when applying the algorithm. I estimate the performance of the model on the <b>validation</b> data set.  
+```{r warning=FALSE, error=FALSE}
+modelRF <- train(classe ~ ., data = training, method = "rf", 
+                 trControl = trainControl(method = "cv", 5), ntree = 100)
+predictRF <- predict(modelRF, validation)
+accuracy <- postResample(predictRF, validation$classe)
+ose <- 1 - as.numeric(confusionMatrix(validation$classe, predictRF)$overall[1])
+``` 
+The Estimated Accuracy of the Random Forest Model is `r accuracy[1]*100`% and the Estimated Out-of-Sample Error is `r ose*100`%. Random Forests yielded better Results than decision three and therefore is considered as final model!
+
+## Make Predictions for Test Data Set  
+Now, we apply the <b>Random Forest</b> model to the original testing data set downloaded from the data source. We remove the problem_id column first.  
+```{r warning=FALSE, error=FALSE}
+predict(modelRF, testing[, -length(names(testing))])
+```
+#Appendix
+###Appendix 1: Decision Tree Output and Confusion marix of the model on the <b>validation</b> data set is below.
+```{r warning=FALSE, error=FALSE}
+prp(modelTree)
+confusionMatrix(validation$classe, predictRF)
+```
+###Appendix 2: Random Forest Output
+```{r warning=FALSE, error=FALSE}
+modelRF
+```
+
+
